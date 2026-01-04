@@ -39,7 +39,7 @@ curl -s -X POST http://localhost:8080/api/v1/calls/outgoing \
   }'
 ```
 
-### DTMF not gonna wrk
+### DTMF (not gonna wrk, my bad)
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/calls/<CALL_ID>/dtmf \
   -H 'Content-Type: application/json' \
