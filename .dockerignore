@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+**/*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

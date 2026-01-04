@@ -1,0 +1,182 @@
+openapi: 3.0.1
+info:
+  title: SIPp Call Emulator Service API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: OK
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: READY
+        '503':
+          description: Not ready
+  /calls/outgoing:
+    post:
+      summary: Create outgoing call (launch SIPp UAC)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOutgoingRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOutgoingResponse'
+        '409':
+          description: Max calls / no ports
+        '500':
+          description: Start failed
+  /calls/{callId}/dtmf:
+    post:
+      summary: Send DTMF digits
+      parameters:
+        - $ref: '#/components/parameters/CallId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DTMFRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallContext'
+        '404':
+          description: Not found
+        '409':
+          description: Invalid state
+  /calls/{callId}/hangup:
+    post:
+      summary: Hangup call (graceful)
+      parameters:
+        - $ref: '#/components/parameters/CallId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallContext'
+        '404':
+          description: Not found
+  /calls/{callId}/disconnect:
+    post:
+      summary: Disconnect call (force)
+      parameters:
+        - $ref: '#/components/parameters/CallId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallContext'
+        '404':
+          description: Not found
+  /calls/{callId}/status:
+    get:
+      summary: Get call status
+      parameters:
+        - $ref: '#/components/parameters/CallId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallContext'
+        '404':
+          description: Not found
+
+components:
+  parameters:
+    CallId:
+      name: callId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    CreateOutgoingRequest:
+      type: object
+      required: [remoteHost, remotePort, destination, scenario]
+      properties:
+        remoteHost:
+          type: string
+          example: 192.168.1.100
+        remotePort:
+          type: integer
+          example: 5060
+        destination:
+          type: string
+          example: "1010050"
+        scenario:
+          type: string
+          example: outgoing.xml
+    CreateOutgoingResponse:
+      type: object
+      required: [callId, state]
+      properties:
+        callId:
+          type: string
+        state:
+          $ref: '#/components/schemas/CallState'
+    DTMFRequest:
+      type: object
+      required: [digits]
+      properties:
+        digits:
+          type: string
+          example: "123"
+        interDigitDelayMs:
+          type: integer
+          example: 100
+    CallState:
+      type: string
+      enum: [CREATED, CALLING, RINGING, ESTABLISHED, HANGUP, DISCONNECTED, FAILED]
+    CallContext:
+      type: object
+      properties:
+        callId:
+          type: string
+        state:
+          $ref: '#/components/schemas/CallState'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        remoteHost:
+          type: string
+        remotePort:
+          type: integer
+        destination:
+          type: string
+        scenario:
+          type: string
+        sipPort:
+          type: integer
+        controlPort:
+          type: integer
+        processPid:
+          type: integer
+        lastError:
+          type: string

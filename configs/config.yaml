@@ -1,0 +1,26 @@
+### Example configuration for SIPp Call Emulator Service
+# This file can be loaded via Viper or environment variables.
+# Environment variables override file values.
+
+SIPP_BINARY: "/usr/local/bin/sipp"
+SCENARIOS_DIR: "/opt/sipp/scenarios"
+LOCAL_IP: "" # optional; if empty the service will try to auto-detect the outgoing IP of the container/host
+
+# Where to store SIPp logs (required for Docker if SCENARIOS_DIR is mounted read-only).
+# For each call, a subfolder <LOGS_DIR>/<callId>/ is created with scenarios and SIPp trace logs.
+LOGS_DIR: "/app/logs"
+
+SIP_PORT_RANGE_START: "6000"
+SIP_PORT_RANGE_END: "6499"
+
+CONTROL_PORT_RANGE_START: "6500"
+CONTROL_PORT_RANGE_END: "6999"
+
+# Important: remote-control SIPp (-cp) uses UDP, not TCP.
+
+MAX_ACTIVE_CALLS: 20
+
+CONTROL_CONNECT_TIMEOUT_MS: 500
+CONTROL_READ_TIMEOUT_MS: 500
+
+API_BIND: "0.0.0.0:8080"

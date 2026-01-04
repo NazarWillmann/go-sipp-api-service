@@ -1,0 +1,54 @@
+services:
+  sipp-emulator-bridge:
+    profiles: ["bridge"]
+    build: .
+    environment:
+      SIPP_BINARY: "/usr/bin/sipp"
+      SCENARIOS_DIR: "/opt/sipp/scenarios"
+      # LOCAL_IP can be omitted -> autodetect inside container (best-effort)
+      SIP_PORT_RANGE_START: "6000"
+      SIP_PORT_RANGE_END: "6499"
+      CONTROL_PORT_RANGE_START: "6500"
+      CONTROL_PORT_RANGE_END: "6999"
+      MAX_ACTIVE_CALLS: "20"
+      CONTROL_CONNECT_TIMEOUT_MS: "500"
+      CONTROL_READ_TIMEOUT_MS: "500"
+      API_BIND: "0.0.0.0:8080"
+      LOGS_DIR: "/var/log/sipp-emulator"
+    volumes:
+      - ./scenarios:/opt/sipp/scenarios:ro
+      - ./logs:/var/log/sipp-emulator
+      - ./logs:/app/logs
+
+    ports:
+      - "8080:8080/tcp"
+
+      # SIP signaling (UDP)
+      - "6000-6499:6000-6499/udp"
+
+      # NOTE: SIPp remote-control (-cp) is UDP, but it is used only locally by the service.
+      # You normally DON'T need to publish control ports to the host.
+
+  # Host networking is the best option for SIP signalling (no NAT).
+  # Works as expected on Linux hosts. On Docker Desktop for Windows/macOS host networking behaves differently.
+  sipp-emulator-host:
+    profiles: ["host"]
+    build: .
+    network_mode: host
+    environment:
+      SIPP_BINARY: "/usr/bin/sipp"
+      SCENARIOS_DIR: "/opt/sipp/scenarios"
+      # LOCAL_IP: "192.168.1.10"
+      SIP_PORT_RANGE_START: "6000"
+      SIP_PORT_RANGE_END: "6499"
+      CONTROL_PORT_RANGE_START: "6500"
+      CONTROL_PORT_RANGE_END: "6999"
+      MAX_ACTIVE_CALLS: "20"
+      CONTROL_CONNECT_TIMEOUT_MS: "500"
+      CONTROL_READ_TIMEOUT_MS: "500"
+      API_BIND: "0.0.0.0:8080"
+      LOGS_DIR: "/var/log/sipp-emulator"
+    volumes:
+      - ./scenarios:/opt/sipp/scenarios:ro
+      - ./logs:/var/log/sipp-emulator
+      - ./logs:/app/logs
