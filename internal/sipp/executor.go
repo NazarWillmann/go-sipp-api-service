@@ -47,7 +47,7 @@ func StartOutgoing(
 	callID string,
 	remoteHost string,
 	remotePort int,
-	destination string, // the number/service you want to call
+	service string, // the number/service you want to call
 	scenario string,
 	sipPort int, // port for SIP messages
 	mediaPort int, // port for audio (must be different from SIP port)
@@ -72,6 +72,15 @@ func StartOutgoing(
 	scenarioSrc := filepath.Join(cfg.ScenariosDir, scenarioFile)
 	if _, err := os.Stat(scenarioSrc); err != nil {
 		return nil, "", fmt.Errorf("scenario not found: %s: %w", scenarioFile, err)
+	}
+
+	// Validate service substitution: check if scenario contains [service] placeholders
+	scenarioContent, err := os.ReadFile(scenarioSrc)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read scenario file: %w", err)
+	}
+	if strings.Contains(string(scenarioContent), "[service]") && service == "" {
+		return nil, "", errors.New("scenario contains [service] placeholders but service parameter is empty")
 	}
 
 	workDir := ""
@@ -103,8 +112,8 @@ func StartOutgoing(
 		"-cp", strconv.Itoa(controlPort),
 		"-nostdin", // do not wait for stdin in any mode
 	}
-	if destination != "" {
-		args = append(args, "-s", destination)
+	if service != "" {
+		args = append(args, "-s", service)
 	}
 
 	// File naming is controlled by SIPp itself: <scenario>_<pid>_messages.log, _errors.log, _screen.log, etc.
