@@ -16,37 +16,42 @@ import (
 	"time"
 )
 
-// Config contains the runtime configuration needed to launch and control SIPp.
+// Config holds the settings we need to run SIPp.
 //
-// Important note about SIPp "remote control": it's UDP-based (not TCP).
-// The -cp option sets the base UDP port; SIPp listens on it and expects single-character commands
-// that mirror the interactive keyboard controls (p, q, Q, etc.).
-// See SIPp documentation: "Controlling SIPp".
+// Note: SIPp's remote control uses UDP, not TCP. You can send simple commands
+// like 'q' to quit or 'Q' to force quit, just like pressing keys in interactive mode.
 type Config struct {
 	Binary                string
 	ScenariosDir          string
 	LocalIP               string
 	ControlConnectTimeout time.Duration
 	ControlReadTimeout    time.Duration
-	LogsDir               string // if set -> per-call workdir with SIPp trace logs + stdout/stderr
+	LogsDir               string // where to save logs for each call
 }
 
 var (
 	ErrControlUnreachable = errors.New("control port is not bound by SIPp after start")
 )
 
-// StartOutgoing launches SIPp (UAC) as an external process.
-// Destination is mapped to SIPp's standard "-s <service>" (user/service part), used by [service] keyword.
+// StartOutgoing starts SIPp to make an outgoing call.
+// The 'destination' parameter is the actual number/service you want to call.
+// We used to incorrectly use the server IP for this, which didn't work well.
+//
+// We use three different ports:
+// - sipPort: for SIP messages
+// - mediaPort: for audio/RTP (different from SIP port to avoid conflicts)
+// - controlPort: so we can control SIPp while it's running
 func StartOutgoing(
 	ctx context.Context,
 	cfg Config,
 	callID string,
 	remoteHost string,
 	remotePort int,
-	destination string,
+	destination string, // the number/service you want to call
 	scenario string,
-	sipPort int,
-	controlPort int,
+	sipPort int, // port for SIP messages
+	mediaPort int, // port for audio (must be different from SIP port)
+	controlPort int, // port for controlling SIPp
 ) (*exec.Cmd, string, error) {
 	if cfg.Binary == "" {
 		return nil, "", errors.New("SIPP_BINARY is empty")
@@ -85,6 +90,7 @@ func StartOutgoing(
 		target,
 		"-i", cfg.LocalIP,
 		"-p", strconv.Itoa(sipPort),
+		"-mp", strconv.Itoa(mediaPort),
 		"-sf", scenarioPath,
 		"-m", "1",
 		"-bg", // non-interactive

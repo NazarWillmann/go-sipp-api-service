@@ -120,7 +120,7 @@ components:
       properties:
         remoteHost:
           type: string
-          example: 192.168.1.100
+          example: 10.0.0.100
         remotePort:
           type: integer
           example: 5060

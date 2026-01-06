@@ -6,10 +6,15 @@ services:
       SIPP_BINARY: "/usr/bin/sipp"
       SCENARIOS_DIR: "/opt/sipp/scenarios"
       # LOCAL_IP can be omitted -> autodetect inside container (best-effort)
+
+      # Port allocation for the new three-port allocator:
+      # Each call needs 3 ports: SIP signaling, RTP media, and SIPp remote control
+      # SIP and Media ports come from the same range (but are guaranteed different)
       SIP_PORT_RANGE_START: "6000"
-      SIP_PORT_RANGE_END: "6499"
+      SIP_PORT_RANGE_END: "6499"        # Used for both SIP signaling and RTP media
       CONTROL_PORT_RANGE_START: "6500"
-      CONTROL_PORT_RANGE_END: "6999"
+      CONTROL_PORT_RANGE_END: "6999"    # Used for SIPp remote control
+
       MAX_ACTIVE_CALLS: "20"
       CONTROL_CONNECT_TIMEOUT_MS: "500"
       CONTROL_READ_TIMEOUT_MS: "500"
@@ -38,11 +43,16 @@ services:
     environment:
       SIPP_BINARY: "/usr/bin/sipp"
       SCENARIOS_DIR: "/opt/sipp/scenarios"
-      # LOCAL_IP: "192.168.1.10"
+      # LOCAL_IP: "10.0.0.10"
+
+      # Port allocation for the new three-port allocator:
+      # Each call needs 3 ports: SIP signaling, RTP media, and SIPp remote control
+      # SIP and Media ports come from the same range (but are guaranteed different)
       SIP_PORT_RANGE_START: "6000"
-      SIP_PORT_RANGE_END: "6499"
+      SIP_PORT_RANGE_END: "6499"        # Used for both SIP signaling and RTP media
       CONTROL_PORT_RANGE_START: "6500"
-      CONTROL_PORT_RANGE_END: "6999"
+      CONTROL_PORT_RANGE_END: "6999"    # Used for SIPp remote control
+
       MAX_ACTIVE_CALLS: "20"
       CONTROL_CONNECT_TIMEOUT_MS: "500"
       CONTROL_READ_TIMEOUT_MS: "500"

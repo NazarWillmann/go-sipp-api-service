@@ -10,13 +10,18 @@ LOCAL_IP: "" # optional; if empty the service will try to auto-detect the outgoi
 # For each call, a subfolder <LOGS_DIR>/<callId>/ is created with scenarios and SIPp trace logs.
 LOGS_DIR: "/app/logs"
 
+# Port allocation for the new three-port allocator:
+# Each call requires 3 ports: SIP signaling, RTP media, and SIPp remote control
+# SIP and Media ports are allocated from the same range (but guaranteed to be different)
+# Control ports are allocated from a separate range to avoid conflicts
 SIP_PORT_RANGE_START: "6000"
-SIP_PORT_RANGE_END: "6499"
+SIP_PORT_RANGE_END: "6499"    # Used for both SIP signaling and RTP media ports
 
 CONTROL_PORT_RANGE_START: "6500"
-CONTROL_PORT_RANGE_END: "6999"
+CONTROL_PORT_RANGE_END: "6999"  # Used for SIPp remote control ports
 
 # Important: remote-control SIPp (-cp) uses UDP, not TCP.
+# With current ranges: max ~250 concurrent calls (500 SIP ports / 2 ports per call)
 
 MAX_ACTIVE_CALLS: 20
 

@@ -7,10 +7,13 @@ import (
 	"sync"
 )
 
-// Pair represents allocated ports for one SIPp instance.
-type Pair struct {
-	SipPort     int
-	ControlPort int
+// Triple holds the three ports we need for each call.
+// We used to have issues where SIP and media used the same port, which caused problems.
+// Now we make sure they're all different.
+type Triple struct {
+	SipPort     int // Port for SIP messages
+	MediaPort   int // Port for audio/RTP (different from SIP port)
+	ControlPort int // Port for controlling SIPp
 }
 
 var (
@@ -18,8 +21,9 @@ var (
 	ErrInvalidPortRanges = errors.New("invalid port ranges")
 )
 
-// Allocator manages allocation of SIP and control ports within configured ranges.
-// It also checks OS-level availability to avoid collisions with other processes.
+// Allocator helps us manage port allocation for calls.
+// Each call gets three different ports to avoid conflicts.
+// We also check if ports are actually free on the system before using them.
 type Allocator struct {
 	sipStart, sipEnd   int
 	ctrlStart, ctrlEnd int
@@ -27,7 +31,7 @@ type Allocator struct {
 	mu         sync.Mutex
 	sipCursor  int
 	ctrlCursor int
-	allocated  map[int]struct{} // both sip and ctrl ports tracked together
+	allocated  map[int]struct{} // tracks all allocated ports (sip, media, ctrl) together
 }
 
 func NewAllocator(sipStart, sipEnd, ctrlStart, ctrlEnd int) (*Allocator, error) {
@@ -54,7 +58,9 @@ func rangesOverlap(aStart, aEnd, bStart, bEnd int) bool {
 	return aStart <= bEnd && bStart <= aEnd
 }
 
-func (a *Allocator) Acquire() (Pair, error) {
+// Acquire finds three free ports for a new call.
+// We make sure the media port is different from the SIP port to avoid conflicts.
+func (a *Allocator) Acquire() (Triple, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -68,24 +74,32 @@ func (a *Allocator) Acquire() (Pair, error) {
 			continue
 		}
 
+		// Find media port (must be different from sip port)
+		media, ok := a.findMediaPortLocked(sip)
+		if !ok {
+			continue
+		}
+
 		ctrl, ok := a.findControlPortLocked()
 		if !ok {
-			return Pair{}, ErrNoPorts
+			return Triple{}, ErrNoPorts
 		}
 
 		a.allocated[sip] = struct{}{}
+		a.allocated[media] = struct{}{}
 		a.allocated[ctrl] = struct{}{}
-		return Pair{SipPort: sip, ControlPort: ctrl}, nil
+		return Triple{SipPort: sip, MediaPort: media, ControlPort: ctrl}, nil
 	}
 
-	return Pair{}, ErrNoPorts
+	return Triple{}, ErrNoPorts
 }
 
-func (a *Allocator) Release(p Pair) {
+func (a *Allocator) Release(t Triple) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	delete(a.allocated, p.SipPort)
-	delete(a.allocated, p.ControlPort)
+	delete(a.allocated, t.SipPort)
+	delete(a.allocated, t.MediaPort)
+	delete(a.allocated, t.ControlPort)
 }
 
 func (a *Allocator) nextSip() int {
@@ -104,6 +118,26 @@ func (a *Allocator) nextCtrl() int {
 		a.ctrlCursor = a.ctrlStart
 	}
 	return p
+}
+
+// findMediaPortLocked finds a media port that's different from the SIP port.
+// This helps avoid conflicts that can cause calls to fail silently.
+func (a *Allocator) findMediaPortLocked(sipPort int) (int, bool) {
+	maxAttempts := a.sipEnd - a.sipStart + 1
+	for i := 0; i < maxAttempts; i++ {
+		media := a.nextSip()
+		if media == sipPort {
+			continue // media port must be different from sip port
+		}
+		if _, ok := a.allocated[media]; ok {
+			continue
+		}
+		if isUdpPortInUse(media) {
+			continue
+		}
+		return media, true
+	}
+	return 0, false
 }
 
 func (a *Allocator) findControlPortLocked() (int, bool) {

@@ -28,20 +28,22 @@ func (s State) IsTerminal() bool {
 	}
 }
 
-// CallContext holds runtime metadata for a SIPp-launched call.
+// CallContext keeps track of everything we know about a call.
 type CallContext struct {
 	CallID    string    `json:"callId"`
 	State     State     `json:"state"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 
-	RemoteHost  string `json:"remoteHost"`
-	RemotePort  int    `json:"remotePort"`
-	Destination string `json:"destination"`
-	Scenario    string `json:"scenario"`
+	RemoteHost  string `json:"remoteHost"`  // Where we're sending the call
+	RemotePort  int    `json:"remotePort"`  // SIP server port
+	Destination string `json:"destination"` // Your own label for tracking
+	Service     string `json:"service"`     // The number we're calling
+	Scenario    string `json:"scenario"`    // Which SIPp scenario we're using
 
-	SipPort     int `json:"sipPort"`
-	ControlPort int `json:"controlPort"`
+	SipPort     int `json:"sipPort"`     // Port for SIP messages
+	MediaPort   int `json:"mediaPort"`   // Port for audio/RTP
+	ControlPort int `json:"controlPort"` // Port for controlling SIPp
 
 	ProcessPid int     `json:"processPid"`
 	LastError  *string `json:"lastError,omitempty"`

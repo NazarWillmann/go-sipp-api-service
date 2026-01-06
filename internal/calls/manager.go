@@ -51,22 +51,30 @@ func NewManager(cfg ManagerConfig, reg *Registry, allocator *ports.Allocator, lo
 	}
 }
 
+// CreateRequest contains everything we need to start a new call.
+// The Service field is required now - it's the actual number you want to call.
+// We used to mistakenly use the server IP for this, which didn't work.
 type CreateRequest struct {
-	RemoteHost  string
-	RemotePort  int
-	Destination string
-	Scenario    string
+	RemoteHost  string // Where to send the call (SIP server IP)
+	RemotePort  int    // SIP server port (usually 5060)
+	Destination string // Optional label for your own tracking
+	Service     string // Required: the number to call (like "1234567890")
+	Scenario    string // Which SIPp scenario file to use
 }
 
+// CreateOutgoing starts a new outgoing call using SIPp.
+// We allocate three different ports to avoid conflicts, check that you provided
+// a service number, and log all the important details.
+// Returns the call info if everything works, or an error if something goes wrong.
 func (m *Manager) CreateOutgoing(ctx context.Context, req CreateRequest) (*CallContext, error) {
-	if req.RemoteHost == "" || req.RemotePort <= 0 || req.Scenario == "" {
+	if req.RemoteHost == "" || req.RemotePort <= 0 || req.Service == "" || req.Scenario == "" {
 		return nil, fmt.Errorf("invalid request")
 	}
 	if m.cfg.MaxActiveCalls > 0 && m.reg.CountActive() >= m.cfg.MaxActiveCalls {
 		return nil, ErrTooManyCalls
 	}
 
-	pair, err := m.ports.Acquire()
+	triple, err := m.ports.Acquire()
 	if err != nil {
 		return nil, err
 	}
@@ -82,26 +90,28 @@ func (m *Manager) CreateOutgoing(ctx context.Context, req CreateRequest) (*CallC
 		RemoteHost:  req.RemoteHost,
 		RemotePort:  req.RemotePort,
 		Destination: req.Destination,
+		Service:     req.Service,
 		Scenario:    req.Scenario,
-		SipPort:     pair.SipPort,
-		ControlPort: pair.ControlPort,
+		SipPort:     triple.SipPort,
+		MediaPort:   triple.MediaPort,
+		ControlPort: triple.ControlPort,
 		ProcessPid:  0,
 		LastError:   nil,
 	}
 
 	if err := m.reg.Add(ctxCall); err != nil {
-		m.ports.Release(pair)
+		m.ports.Release(triple)
 		return nil, err
 	}
 
-	cmd, workDir, err := sipp.StartOutgoing(ctx, m.cfg.Sipp, callID, req.RemoteHost, req.RemotePort, req.Destination, req.Scenario, pair.SipPort, pair.ControlPort)
+	cmd, workDir, err := sipp.StartOutgoing(ctx, m.cfg.Sipp, callID, req.RemoteHost, req.RemotePort, req.Service, req.Scenario, triple.SipPort, triple.MediaPort, triple.ControlPort)
 	if err != nil {
 		m.reg.Update(callID, func(c *CallContext) {
 			es := err.Error()
 			c.LastError = &es
 			c.State = StateFailed
 		})
-		m.ports.Release(pair)
+		m.ports.Release(triple)
 		return nil, err
 	}
 
@@ -127,9 +137,11 @@ func (m *Manager) CreateOutgoing(ctx context.Context, req CreateRequest) (*CallC
 		zap.String("remoteHost", req.RemoteHost),
 		zap.Int("remotePort", req.RemotePort),
 		zap.String("destination", req.Destination),
-		zap.String("scenario", req.Scenario),
-		zap.Int("sipPort", pair.SipPort),
-		zap.Int("controlPort", pair.ControlPort),
+		zap.String("service", req.Service),
+		zap.String("scenarioName", req.Scenario),
+		zap.Int("sipPort", triple.SipPort),
+		zap.Int("mediaPort", triple.MediaPort),
+		zap.Int("controlPort", triple.ControlPort),
 		zap.Int("pid", pid),
 		zap.Strings("sippCmd", cmd.Args),
 		zap.String("workDir", workDir),
@@ -232,7 +244,7 @@ func (m *Manager) Disconnect(callID string) (*CallContext, error) {
 func (m *Manager) ReleaseResources(callID string) {
 	c, ok := m.reg.Get(callID)
 	if ok {
-		m.ports.Release(ports.Pair{SipPort: c.SipPort, ControlPort: c.ControlPort})
+		m.ports.Release(ports.Triple{SipPort: c.SipPort, MediaPort: c.MediaPort, ControlPort: c.ControlPort})
 	}
 	m.mu.Lock()
 	delete(m.cmds, callID)
@@ -242,7 +254,7 @@ func (m *Manager) ReleaseResources(callID string) {
 func (m *Manager) finalizeCall(callID string, terminal State) {
 	c, ok := m.reg.Get(callID)
 	if ok {
-		m.ports.Release(ports.Pair{SipPort: c.SipPort, ControlPort: c.ControlPort})
+		m.ports.Release(ports.Triple{SipPort: c.SipPort, MediaPort: c.MediaPort, ControlPort: c.ControlPort})
 	}
 
 	m.reg.Update(callID, func(cc *CallContext) {

@@ -116,18 +116,26 @@ func rangesOverlap(aStart, aEnd, bStart, bEnd int) bool {
 	return aStart <= bEnd && bStart <= aEnd
 }
 
+// createOutgoingReq is what you send when you want to start a new call.
+// The Service field is required now - it's the actual number you want to call.
+// We used to incorrectly use the server IP for this, which didn't work well.
 type createOutgoingReq struct {
-	RemoteHost  string `json:"remoteHost"`
-	RemotePort  int    `json:"remotePort"`
-	Destination string `json:"destination"`
-	Scenario    string `json:"scenario"`
+	RemoteHost  string `json:"remoteHost"`  // Where to send the call (SIP server IP)
+	RemotePort  int    `json:"remotePort"`  // SIP server port (usually 5060)
+	Destination string `json:"destination"` // Optional label for your own tracking
+	Service     string `json:"service"`     // Required: the number to call (like "1234567890")
+	Scenario    string `json:"scenario"`    // Which SIPp scenario to use
 }
 
+// createOutgoingResp is what we send back when a call is created successfully.
 type createOutgoingResp struct {
-	CallID string      `json:"callId"`
-	State  calls.State `json:"state"`
+	CallID string      `json:"callId"` // Unique ID for this call
+	State  calls.State `json:"state"`  // Current call state
 }
 
+// CreateOutgoing handles requests to start new outgoing calls.
+// You need to include a 'service' field now - that's the number you actually want to call.
+// Returns 400 if you forget the service field, 409 if we're too busy, 201 if all goes well.
 func (h *Handler) CreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	var req createOutgoingReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -135,10 +143,16 @@ func (h *Handler) CreateOutgoing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Service == "" {
+		writeError(w, http.StatusBadRequest, "service field is required")
+		return
+	}
+
 	ctx, err := h.Mgr.CreateOutgoing(r.Context(), calls.CreateRequest{
 		RemoteHost:  req.RemoteHost,
 		RemotePort:  req.RemotePort,
 		Destination: req.Destination,
+		Service:     req.Service,
 		Scenario:    req.Scenario,
 	})
 	if err != nil {
