@@ -60,6 +60,26 @@ func loadConfig() (*AppConfig, error) {
 		return nil, err
 	}
 
+	// Validate required fields
+	if cfg.SippBinary == "" {
+		return nil, errors.New("SIPP_BINARY is required")
+	}
+	if cfg.ScenariosDir == "" {
+		return nil, errors.New("SCENARIOS_DIR is required")
+	}
+	if cfg.SipPortRangeStart <= 0 || cfg.SipPortRangeEnd <= 0 {
+		return nil, errors.New("SIP port range must be positive")
+	}
+	if cfg.ControlPortRangeStart <= 0 || cfg.ControlPortRangeEnd <= 0 {
+		return nil, errors.New("Control port range must be positive")
+	}
+	if cfg.SipPortRangeStart > cfg.SipPortRangeEnd {
+		return nil, errors.New("SIP port range start must be <= end")
+	}
+	if cfg.ControlPortRangeStart > cfg.ControlPortRangeEnd {
+		return nil, errors.New("Control port range start must be <= end")
+	}
+
 	// Allow LOCAL_IP to be omitted; we will autodetect.
 	cfg.LocalIP = strings.TrimSpace(cfg.LocalIP)
 	if cfg.LocalIP == "" {
@@ -160,6 +180,17 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	logger.Info("shutting down gracefully...")
+
+	// Terminate all active calls
+	activeCalls := reg.List()
+	for _, call := range activeCalls {
+		if !call.State.IsTerminal() {
+			logger.Info("terminating active call", zap.String("callId", call.CallID))
+			mgr.Disconnect(call.CallID)
+		}
+	}
 
 	close(stopMon)
 

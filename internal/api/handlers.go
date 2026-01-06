@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -143,12 +144,39 @@ func (h *Handler) CreateOutgoing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate required fields
 	if req.Service == "" {
 		writeError(w, http.StatusBadRequest, "service field is required")
 		return
 	}
+	if req.RemoteHost == "" {
+		writeError(w, http.StatusBadRequest, "remoteHost field is required")
+		return
+	}
+	if req.Scenario == "" {
+		writeError(w, http.StatusBadRequest, "scenario field is required")
+		return
+	}
 
-	ctx, err := h.Mgr.CreateOutgoing(r.Context(), calls.CreateRequest{
+	// Validate remotePort range
+	if req.RemotePort < 1 || req.RemotePort > 65535 {
+		writeError(w, http.StatusBadRequest, "remotePort must be between 1 and 65535")
+		return
+	}
+
+	// Basic validation for remoteHost (not empty, basic format check)
+	if strings.TrimSpace(req.RemoteHost) == "" {
+		writeError(w, http.StatusBadRequest, "remoteHost cannot be empty or whitespace")
+		return
+	}
+
+	// Basic validation for service (not empty, reasonable charset)
+	if strings.TrimSpace(req.Service) == "" {
+		writeError(w, http.StatusBadRequest, "service cannot be empty or whitespace")
+		return
+	}
+
+	ctx, err := h.Mgr.CreateOutgoing(context.Background(), calls.CreateRequest{
 		RemoteHost:  req.RemoteHost,
 		RemotePort:  req.RemotePort,
 		Destination: req.Destination,
@@ -174,28 +202,7 @@ type dtmfReq struct {
 }
 
 func (h *Handler) SendDTMF(w http.ResponseWriter, r *http.Request) {
-	callID := chi.URLParam(r, "callId")
-	var req dtmfReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json")
-		return
-	}
-
-	ctx, err := h.Mgr.SendDTMF(callID, req.Digits, req.InterDigitDelayMs)
-	if err != nil {
-		if errors.Is(err, calls.ErrNotFound) {
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		if errors.Is(err, calls.ErrInvalidState) {
-			writeError(w, http.StatusConflict, err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, ctx)
+	writeError(w, http.StatusNotImplemented, "DTMF only works via scenario files. Please include DTMF commands in your SIPp scenario XML.")
 }
 
 func (h *Handler) Hangup(w http.ResponseWriter, r *http.Request) {

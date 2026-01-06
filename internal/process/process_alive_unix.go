@@ -1,14 +1,14 @@
 //go:build !windows
 
-package monitor
+package process
 
 import "syscall"
 
-// processAlive checks whether pid exists.
+// ProcessAlive checks whether pid exists.
 //
 // On Unix we can use "signal 0": it does not actually send a signal,
 // only performs existence/permission check.
-func processAlive(pid int) bool {
+func ProcessAlive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}

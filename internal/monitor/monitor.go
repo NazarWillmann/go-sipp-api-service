@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap"
 
 	"sipp-service/internal/calls"
+	"sipp-service/internal/process"
 )
 
 // Monitor supervises calls and performs cleanup of terminal calls.
@@ -67,7 +68,7 @@ func (m *Monitor) checkProcesses() {
 		}
 
 		// Best-effort liveness: if process is gone, mark FAILED and release ports via Disconnect().
-		if !processAlive(c.ProcessPid) {
+		if !process.ProcessAlive(c.ProcessPid) {
 			m.logger.Warn("process exited unexpectedly", zap.String("callId", c.CallID), zap.Int("pid", c.ProcessPid))
 			m.reg.Update(c.CallID, func(cc *calls.CallContext) {
 				msg := "process exited"

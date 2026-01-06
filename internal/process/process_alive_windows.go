@@ -1,6 +1,6 @@
 //go:build windows
 
-package monitor
+package process
 
 import (
 	"golang.org/x/sys/windows"
@@ -10,7 +10,7 @@ import (
 // MS docs state it is 259.
 const stillActive uint32 = 259
 
-func processAlive(pid int) bool {
+func ProcessAlive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}

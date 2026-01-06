@@ -3,7 +3,7 @@
 ## What is this
 A simple HTTP service that helps you make SIP calls using SIPp. Each call runs as its own process, and you can control them through a REST API.
 
-## What's New (v2.0)
+## What's New (v0.2.0-alpha)
 - **Service Field**: Now you need to specify which number/service to call (we used to incorrectly use the server IP for this)
 - **Better Port Handling**: SIP and media traffic now use separate ports to avoid conflicts
 - **More Detailed Logs**: We now log all the important details when starting calls
@@ -48,7 +48,7 @@ curl -s -X POST http://localhost:8080/api/v1/calls/outgoing \
 
 **Note**: You now need to include a `service` field - this is the actual number or service you want to call. We used to mistakenly use the server's IP for this, which didn't work very well.
 
-## What Changed in v2.0
+## What Changed in v0.2.0-alpha
 
 ### What you need to provide
 - `service`: **This is new and required** - the phone number or service ID you want to call (like "1234567890")

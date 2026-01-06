@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: SIPp Call Emulator Service API
-  version: 1.0.0
+  version: v0.2.0-alpha
 servers:
   - url: /api/v1
 paths:
@@ -51,16 +51,8 @@ paths:
             schema:
               $ref: '#/components/schemas/DTMFRequest'
       responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CallContext'
-        '404':
-          description: Not found
-        '409':
-          description: Invalid state
+        '501':
+          description: Not Implemented - DTMF only works via scenario files
   /calls/{callId}/hangup:
     post:
       summary: Hangup call (graceful)
@@ -116,7 +108,7 @@ components:
   schemas:
     CreateOutgoingRequest:
       type: object
-      required: [remoteHost, remotePort, destination, scenario]
+      required: [remoteHost, remotePort, service, scenario]
       properties:
         remoteHost:
           type: string
@@ -127,6 +119,11 @@ components:
         destination:
           type: string
           example: "1010050"
+          description: Optional label for your own tracking
+        service:
+          type: string
+          example: "1234567890"
+          description: Required - the phone number or service ID you want to call
         scenario:
           type: string
           example: outgoing.xml

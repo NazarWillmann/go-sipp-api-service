@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -14,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"sipp-service/internal/ports"
+	"sipp-service/internal/process"
 	"sipp-service/internal/sipp"
 )
 
@@ -104,7 +104,7 @@ func (m *Manager) CreateOutgoing(ctx context.Context, req CreateRequest) (*CallC
 		return nil, err
 	}
 
-	cmd, workDir, err := sipp.StartOutgoing(ctx, m.cfg.Sipp, callID, req.RemoteHost, req.RemotePort, req.Service, req.Scenario, triple.SipPort, triple.MediaPort, triple.ControlPort)
+	cmd, workDir, err := sipp.StartOutgoing(context.Background(), m.cfg.Sipp, callID, req.RemoteHost, req.RemotePort, req.Service, req.Scenario, triple.SipPort, triple.MediaPort, triple.ControlPort)
 	if err != nil {
 		m.reg.Update(callID, func(c *CallContext) {
 			es := err.Error()
@@ -123,6 +123,49 @@ func (m *Manager) CreateOutgoing(ctx context.Context, req CreateRequest) (*CallC
 	m.mu.Lock()
 	m.cmds[callID] = cmd
 	m.mu.Unlock()
+
+	// Start a goroutine to wait for the process to complete and clean up resources
+	go func() {
+		err := cmd.Wait()
+
+		// Check if call is already in terminal state before updating
+		c, ok := m.reg.Get(callID)
+		if !ok {
+			return // Call was already cleaned up
+		}
+
+		// Only update state if not already terminal (idempotent behavior)
+		if !c.State.IsTerminal() {
+			// Determine final state based on exit status
+			finalState := StateDisconnected
+			if err != nil {
+				finalState = StateFailed
+			}
+
+			// Update the call state and capture error if any
+			m.finalizeCall(callID, finalState)
+
+			// Set LastError if there was an error
+			if err != nil {
+				m.reg.Update(callID, func(cc *CallContext) {
+					es := err.Error()
+					cc.LastError = &es
+				})
+			}
+		}
+
+		// Always release resources regardless of state
+		m.ReleaseResources(callID)
+
+		if err != nil {
+			m.logger.Warn("sipp process exited with error",
+				zap.String("callId", callID),
+				zap.Error(err))
+		} else {
+			m.logger.Info("sipp process completed successfully",
+				zap.String("callId", callID))
+		}
+	}()
 
 	updated, _ := m.reg.Update(callID, func(c *CallContext) {
 		c.ProcessPid = pid
@@ -202,14 +245,14 @@ func (m *Manager) Hangup(callID string, gracefulTimeout time.Duration) (*CallCon
 		if cmd == nil || cmd.Process == nil {
 			break
 		}
-		if !processAlive(cmd.Process.Pid) {
+		if !process.ProcessAlive(cmd.Process.Pid) {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Force kill if still alive.
-	if cmd != nil && cmd.Process != nil && processAlive(cmd.Process.Pid) {
+	if cmd != nil && cmd.Process != nil && process.ProcessAlive(cmd.Process.Pid) {
 		_ = cmd.Process.Kill()
 	}
 
@@ -242,24 +285,62 @@ func (m *Manager) Disconnect(callID string) (*CallContext, error) {
 // ReleaseResources releases ports and detaches the exec.Cmd from manager storage WITHOUT changing call state.
 // This is useful for background monitors when the process exited unexpectedly but we want to keep FAILED state.
 func (m *Manager) ReleaseResources(callID string) {
-	c, ok := m.reg.Get(callID)
-	if ok {
-		m.ports.Release(ports.Triple{SipPort: c.SipPort, MediaPort: c.MediaPort, ControlPort: c.ControlPort})
+	// Atomically get ports and mark as released to prevent race conditions
+	var portsToRelease *ports.Triple
+
+	_, ok := m.reg.Update(callID, func(cc *CallContext) {
+		// Capture ports to release if they're still allocated
+		if cc.SipPort > 0 {
+			portsToRelease = &ports.Triple{
+				SipPort:     cc.SipPort,
+				MediaPort:   cc.MediaPort,
+				ControlPort: cc.ControlPort,
+			}
+			// Mark ports as released in registry
+			cc.SipPort = 0
+			cc.MediaPort = 0
+			cc.ControlPort = 0
+		}
+	})
+
+	// Release ports outside the registry lock if we captured them
+	if ok && portsToRelease != nil {
+		m.ports.Release(*portsToRelease)
 	}
+
 	m.mu.Lock()
 	delete(m.cmds, callID)
 	m.mu.Unlock()
 }
 
 func (m *Manager) finalizeCall(callID string, terminal State) {
-	c, ok := m.reg.Get(callID)
-	if ok {
-		m.ports.Release(ports.Triple{SipPort: c.SipPort, MediaPort: c.MediaPort, ControlPort: c.ControlPort})
-	}
+	// Atomically get ports and update state to prevent race conditions
+	var portsToRelease *ports.Triple
 
-	m.reg.Update(callID, func(cc *CallContext) {
-		cc.State = terminal
+	_, ok := m.reg.Update(callID, func(cc *CallContext) {
+		// Only update if not already terminal (idempotent)
+		if !cc.State.IsTerminal() {
+			cc.State = terminal
+
+			// Capture ports to release if they're still allocated
+			if cc.SipPort > 0 {
+				portsToRelease = &ports.Triple{
+					SipPort:     cc.SipPort,
+					MediaPort:   cc.MediaPort,
+					ControlPort: cc.ControlPort,
+				}
+				// Mark ports as released in registry
+				cc.SipPort = 0
+				cc.MediaPort = 0
+				cc.ControlPort = 0
+			}
+		}
 	})
+
+	// Release ports outside the registry lock if we captured them
+	if ok && portsToRelease != nil {
+		m.ports.Release(*portsToRelease)
+	}
 
 	m.mu.Lock()
 	delete(m.cmds, callID)
@@ -270,17 +351,4 @@ func (m *Manager) getCmd(callID string) *exec.Cmd {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cmds[callID]
-}
-
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// unix liveness check: signal 0
-	err = p.Signal(syscall.Signal(0))
-	return err == nil
 }

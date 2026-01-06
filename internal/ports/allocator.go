@@ -147,7 +147,7 @@ func (a *Allocator) findControlPortLocked() (int, bool) {
 		if _, ok := a.allocated[ctrl]; ok {
 			continue
 		}
-		if isTcpPortInUse(ctrl) {
+		if isUdpPortInUse(ctrl) {
 			continue
 		}
 		return ctrl, true

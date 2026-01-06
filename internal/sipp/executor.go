@@ -63,9 +63,15 @@ func StartOutgoing(
 		return nil, "", errors.New("LOCAL_IP is empty")
 	}
 
-	scenarioSrc := filepath.Join(cfg.ScenariosDir, scenario)
+	// Sanitize scenario path to prevent path traversal attacks
+	scenarioFile := filepath.Base(scenario)
+	if scenarioFile == "." || scenarioFile == ".." || scenarioFile == "" {
+		return nil, "", errors.New("invalid scenario filename")
+	}
+
+	scenarioSrc := filepath.Join(cfg.ScenariosDir, scenarioFile)
 	if _, err := os.Stat(scenarioSrc); err != nil {
-		return nil, "", fmt.Errorf("scenario not found: %s: %w", scenarioSrc, err)
+		return nil, "", fmt.Errorf("scenario not found: %s: %w", scenarioFile, err)
 	}
 
 	workDir := ""
@@ -205,9 +211,14 @@ func waitUDPPortBound(host string, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to resolve UDP address %s:%d: %w", host, port, err)
 	}
-	for time.Now().Before(deadline) {
+
+	attempts := 0
+	maxAttempts := int(timeout.Milliseconds() / 100) // attempt every 100ms
+
+	for time.Now().Before(deadline) && attempts < maxAttempts {
+		attempts++
 		c, err := net.ListenUDP("udp", addr)
 		if err == nil {
 			// We managed to bind => SIPp did NOT bind it.
@@ -215,14 +226,23 @@ func waitUDPPortBound(host string, port int, timeout time.Duration) error {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
+
+		errStr := strings.ToLower(err.Error())
 		// If address already in use, we consider port bound by SIPp.
-		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+		if strings.Contains(errStr, "address already in use") ||
+			strings.Contains(errStr, "bind: address already in use") {
 			return nil
 		}
-		// Other errors (e.g., host ip not present) -> return quickly.
-		return err
+
+		// Critical errors - exit immediately
+		if strings.Contains(errStr, "invalid argument") ||
+			strings.Contains(errStr, "network is unreachable") {
+			return fmt.Errorf("network error for %s:%d: %w", host, port, err)
+		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("udp %s:%d not bound within %s", host, port, timeout)
+	return fmt.Errorf("udp %s:%d not bound within %s after %d attempts", host, port, timeout, attempts)
 }
 
 func drainPipe(r io.ReadCloser) {
