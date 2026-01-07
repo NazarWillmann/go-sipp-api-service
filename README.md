@@ -106,7 +106,8 @@ This helps avoid conflicts and makes things more reliable.
 
 ## About controlling calls
 SIPp lets you send simple commands over UDP - like 'q' to quit nicely or 'Q' to quit immediately.  
-We try TCP first, then fall back to UDP if that doesn't work.
+We try TCP first, then fall back to UDP if that doesn't work. - outdated
+upd. This service uses SIPp's UDP remote control only (no TCP fallback).
 
 If DTMF doesn't work through the control channel, you might need to put it directly in your XML scenario file.
 

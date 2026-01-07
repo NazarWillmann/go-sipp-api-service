@@ -64,6 +64,7 @@ func (m *Monitor) checkProcesses() {
 				cc.LastError = &msg
 				cc.State = calls.StateFailed
 			})
+			m.mgr.ReleaseResources(c.CallID)
 			continue
 		}
 

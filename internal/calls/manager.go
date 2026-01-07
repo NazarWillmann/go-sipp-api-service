@@ -104,7 +104,7 @@ func (m *Manager) CreateOutgoing(ctx context.Context, req CreateRequest) (*CallC
 		return nil, err
 	}
 
-	cmd, workDir, err := sipp.StartOutgoing(context.Background(), m.cfg.Sipp, callID, req.RemoteHost, req.RemotePort, req.Service, req.Scenario, triple.SipPort, triple.MediaPort, triple.ControlPort)
+	cmd, workDir, err := sipp.StartOutgoing(ctx, m.cfg.Sipp, callID, req.RemoteHost, req.RemotePort, req.Service, req.Scenario, triple.SipPort, triple.MediaPort, triple.ControlPort)
 	if err != nil {
 		m.reg.Update(callID, func(c *CallContext) {
 			es := err.Error()
@@ -227,7 +227,7 @@ func (m *Manager) Hangup(callID string, gracefulTimeout time.Duration) (*CallCon
 		return c, nil
 	}
 
-	// Best effort: ask SIPp to soft quit via control ('q'), then fallback to signals.
+	// Best effort: ask SIPp to softly quit via control ('q'), then fallback to signals.
 	_ = sipp.SoftQuit(m.cfg.Sipp, c.ControlPort)
 
 	cmd := m.getCmd(callID)

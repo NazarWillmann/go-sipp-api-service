@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"sipp-service/internal/calls"
+	"sipp-service/internal/ports"
 )
 
 type Handler struct {
@@ -176,7 +176,7 @@ func (h *Handler) CreateOutgoing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, err := h.Mgr.CreateOutgoing(context.Background(), calls.CreateRequest{
+	ctx, err := h.Mgr.CreateOutgoing(r.Context(), calls.CreateRequest{
 		RemoteHost:  req.RemoteHost,
 		RemotePort:  req.RemotePort,
 		Destination: req.Destination,
@@ -185,7 +185,7 @@ func (h *Handler) CreateOutgoing(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, calls.ErrTooManyCalls):
+		case errors.Is(err, calls.ErrTooManyCalls), errors.Is(err, ports.ErrNoPorts):
 			writeError(w, http.StatusConflict, err.Error())
 		default:
 			writeError(w, http.StatusInternalServerError, err.Error())
