@@ -72,7 +72,7 @@ curl -s -X POST http://localhost:8080/api/v1/calls/outgoing \
 }
 ```
 
-### DTMF not gonna wrk
+### DTMF not gonna wrk cause not implemented(yet)
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/calls/<CALL_ID>/dtmf \
   -H 'Content-Type: application/json' \
@@ -106,7 +106,7 @@ This helps avoid conflicts and makes things more reliable.
 
 ## About controlling calls
 SIPp lets you send simple commands over UDP - like 'q' to quit nicely or 'Q' to quit immediately.  
-We try TCP first, then fall back to UDP if that doesn't work. - outdated
+We try TCP first, then fall back to UDP if that doesn't work. - outdated.
 upd. This service uses SIPp's UDP remote control only (no TCP fallback).
 
 If DTMF doesn't work through the control channel, you might need to put it directly in your XML scenario file.
