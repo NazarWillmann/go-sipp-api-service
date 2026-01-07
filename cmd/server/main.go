@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -80,15 +79,8 @@ func loadConfig() (*AppConfig, error) {
 		return nil, errors.New("Control port range start must be <= end")
 	}
 
-	// Allow LOCAL_IP to be omitted; we will autodetect.
+	// Allow LOCAL_IP to be omitted; executor will autodetect per-call using remoteHost.
 	cfg.LocalIP = strings.TrimSpace(cfg.LocalIP)
-	if cfg.LocalIP == "" {
-		ip, err := detectLocalIP("")
-		if err != nil {
-			return nil, fmt.Errorf("LOCAL_IP is empty and autodetect failed: %w", err)
-		}
-		cfg.LocalIP = ip
-	}
 
 	return &cfg, nil
 }
