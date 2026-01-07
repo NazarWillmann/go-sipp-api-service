@@ -80,7 +80,7 @@ func loadConfig() (*AppConfig, error) {
 		return nil, errors.New("Control port range start must be <= end")
 	}
 
-	// Allow LOCAL_IP to be omitted; we will autodetect.
+	//  Allow LOCAL_IP to be omitted; we will autodetect.
 	cfg.LocalIP = strings.TrimSpace(cfg.LocalIP)
 	if cfg.LocalIP == "" {
 		ip, err := detectLocalIP("")
