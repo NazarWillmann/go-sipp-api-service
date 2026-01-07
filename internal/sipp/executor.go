@@ -59,8 +59,15 @@ func StartOutgoing(
 	if cfg.ScenariosDir == "" {
 		return nil, "", errors.New("SCENARIOS_DIR is empty")
 	}
-	if cfg.LocalIP == "" {
-		return nil, "", errors.New("LOCAL_IP is empty")
+
+	// Allow LOCAL_IP to be empty - we'll detect it using remoteHost
+	localIP := cfg.LocalIP
+	if localIP == "" {
+		detectedIP, err := detectLocalIPForHost(remoteHost)
+		if err != nil {
+			return nil, "", fmt.Errorf("LOCAL_IP is empty and autodetect failed for host %s: %w", remoteHost, err)
+		}
+		localIP = detectedIP
 	}
 
 	// Sanitize scenario path to prevent path traversal attacks
@@ -103,7 +110,7 @@ func StartOutgoing(
 
 	args := []string{
 		target,
-		"-i", cfg.LocalIP,
+		"-i", localIP,
 		"-p", strconv.Itoa(sipPort),
 		"-mp", strconv.Itoa(mediaPort),
 		"-sf", scenarioPath,
@@ -159,7 +166,7 @@ func StartOutgoing(
 
 	// Control port validation: SIPp remote control is UDP; there's no handshake.
 	// We validate by attempting to bind the UDP port ourselves: if SIPp bound it, we should get EADDRINUSE.
-	if err := waitUDPPortBound(cfg.LocalIP, controlPort, cfg.ControlConnectTimeout); err != nil {
+	if err := waitUDPPortBound(localIP, controlPort, cfg.ControlConnectTimeout); err != nil {
 		_ = killProcess(cmd)
 		return nil, workDir, fmt.Errorf("%w: %v", ErrControlUnreachable, err)
 	}
@@ -290,4 +297,21 @@ func killProcess(cmd *exec.Cmd) error {
 	_ = cmd.Process.Signal(syscall.SIGKILL)
 	_, _ = cmd.Process.Wait()
 	return nil
+}
+
+// detectLocalIPForHost returns the local IP that would be used to reach the given host.
+// This replaces the old approach of dialing 8.8.8.8 with a more targeted approach.
+func detectLocalIPForHost(remoteHost string) (string, error) {
+	target := remoteHost + ":80"
+	if strings.Contains(remoteHost, ":") {
+		target = remoteHost
+	}
+
+	c, err := net.Dial("udp", target)
+	if err != nil {
+		return "", err
+	}
+	defer c.Close()
+	localAddr := c.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
 }

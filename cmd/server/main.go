@@ -83,7 +83,7 @@ func loadConfig() (*AppConfig, error) {
 	// Allow LOCAL_IP to be omitted; we will autodetect.
 	cfg.LocalIP = strings.TrimSpace(cfg.LocalIP)
 	if cfg.LocalIP == "" {
-		ip, err := detectLocalIP()
+		ip, err := detectLocalIP("")
 		if err != nil {
 			return nil, fmt.Errorf("LOCAL_IP is empty and autodetect failed: %w", err)
 		}
@@ -94,8 +94,19 @@ func loadConfig() (*AppConfig, error) {
 }
 
 // detectLocalIP returns the primary outbound IP (best-effort).
-func detectLocalIP() (string, error) {
-	c, err := net.Dial("udp", "8.8.8.8:80")
+// If remoteHost is provided, it will dial to that host instead of 8.8.8.8.
+func detectLocalIP(remoteHost string) (string, error) {
+	target := "8.8.8.8:80"
+	if remoteHost != "" {
+		// Use the remoteHost for detection, defaulting to port 80 if no port specified
+		if !strings.Contains(remoteHost, ":") {
+			target = remoteHost + ":80"
+		} else {
+			target = remoteHost
+		}
+	}
+
+	c, err := net.Dial("udp", target)
 	if err != nil {
 		return "", err
 	}

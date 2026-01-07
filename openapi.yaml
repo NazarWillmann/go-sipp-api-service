@@ -167,10 +167,16 @@ components:
           type: integer
         destination:
           type: string
+        service:
+          type: string
+          description: The phone number or service ID being called
         scenario:
           type: string
         sipPort:
           type: integer
+        mediaPort:
+          type: integer
+          description: Port for audio/RTP traffic
         controlPort:
           type: integer
         processPid:
