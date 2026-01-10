@@ -100,6 +100,11 @@ curl -s -X POST http://localhost:8080/api/v1/calls/<CALL_ID>/hangup
 curl -s -X POST http://localhost:8080/api/v1/calls/<CALL_ID>/disconnect
 ```
 
+### Limitations
+
+- **DTMF**: sending DTMF via the API is not implemented yet. For now, include DTMF digits directly in your SIPp XML scenarios.
+
+
 ## Scenarios
 Scenarios are mounted into the container at `/opt/sipp/scenarios` (read-only in docker-compose).
 
